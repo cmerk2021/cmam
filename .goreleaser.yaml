@@ -1,0 +1,48 @@
+version: 2
+
+project_name: cmam
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: cmam
+    main: .
+    binary: cmam
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/cmerk2021/cmam/internal/version.Version={{ .Version }}
+      - -X github.com/cmerk2021/cmam/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/cmerk2021/cmam/internal/version.Date={{ .Date }}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+release:
+  draft: false
+  prerelease: auto
