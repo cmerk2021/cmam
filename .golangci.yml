@@ -1,0 +1,20 @@
+version: "2"
+
+linters:
+  default: standard
+  settings:
+    errcheck:
+      # Writes to stderr/terminal and best-effort cleanup closes are
+      # intentionally unchecked; closes that matter are checked explicitly.
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (*compress/gzip.Reader).Close
+        - (*compress/gzip.Writer).Close
+        - (*archive/tar.Writer).Close
+        - os.Remove
+        - (net/http.ResponseWriter).Write
+        - (*github.com/cmerk2021/cmam/internal/state.Lock).Release

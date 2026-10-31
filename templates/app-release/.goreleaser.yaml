@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+#
+# Generic GoReleaser config for apps distributed through CMAM.
+# This file is the source of truth for the asset naming convention CMAM
+# expects: <name>_<version>_linux_<arch>.tar.gz + checksums.txt, with the
+# binary named after the project at the archive root.
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - binary: "{{ .ProjectName }}"
+    main: .
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc

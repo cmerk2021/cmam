@@ -1,0 +1,5 @@
+# This is an EXAMPLE manifest. Files named "example.toml" are excluded from
+# the generated index. Copy it to apps/<your-app>.toml and edit the fields.
+name = "example"
+description = "Example manifest showing the registry format"
+repo = "cmerk2021/example"
