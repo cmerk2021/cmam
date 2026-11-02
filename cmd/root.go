@@ -79,9 +79,27 @@ func (a *app) friendlyError(err error) error {
 }
 
 // NewRootCmd builds the full cmam command tree.
-func NewRootCmd() *cobra.Command {
-	a := &app{}
+func NewRootCmd() *cobra.Command { return newRootCmd(&app{}) }
 
+// skipUpdateCheck lists commands that must not trigger the self-update check.
+var skipUpdateCheck = map[string]bool{
+	"self-update":                   true,
+	"completion":                    true,
+	cobra.ShellCompRequestCmd:       true,
+	cobra.ShellCompNoDescRequestCmd: true,
+}
+
+// printUpdateNotice prints a short out-of-date warning to stderr, if any.
+func (a *app) printUpdateNotice() {
+	if a.updateNotice == nil {
+		return
+	}
+	if n := a.updateNotice(); n != "" {
+		fmt.Fprintln(os.Stderr, ui.StyleWarn.Render(ui.GlyphWarn+" "+n))
+	}
+}
+
+func newRootCmd(a *app) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "cmam",
 		Short:         "cmam installs and manages prebuilt Go CLI tools",
@@ -108,16 +126,10 @@ func NewRootCmd() *cobra.Command {
 				config.RegistryManifestURL,
 				paths.RegistryCacheDir,
 			)
-			a.updateNotice = selfupdate.StartBackgroundCheck(cmd.Context(), paths, a.interactive())
+			if !skipUpdateCheck[cmd.Name()] && (cmd.Parent() == nil || cmd.Parent().Name() != "completion") {
+				a.updateNotice = selfupdate.StartBackgroundCheck(cmd.Context(), paths, ui.IsTTY(os.Stderr))
+			}
 			return nil
-		},
-		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if cmd.Name() == "self-update" || a.updateNotice == nil {
-				return
-			}
-			if n := a.updateNotice(); n != "" {
-				fmt.Fprintln(os.Stderr, ui.StyleSubtle.Render(n))
-			}
 		},
 	}
 
@@ -146,11 +158,15 @@ func Execute() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	root := NewRootCmd()
-	if err := root.ExecuteContext(ctx); err != nil {
-		if !errors.Is(err, errSilent) {
-			fmt.Fprintln(os.Stderr, ui.ErrorBlock(err.Error(), ""))
-		}
+	a := &app{}
+	root := newRootCmd(a)
+	err := root.ExecuteContext(ctx)
+	if err != nil && !errors.Is(err, errSilent) {
+		fmt.Fprintln(os.Stderr, ui.ErrorBlock(err.Error(), ""))
+	}
+	// Shown after every command, including failed ones.
+	a.printUpdateNotice()
+	if err != nil {
 		return 1
 	}
 	return 0
