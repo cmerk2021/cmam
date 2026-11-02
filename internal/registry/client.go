@@ -59,6 +59,9 @@ type Result struct {
 	Stale bool
 	// Age is how old the cached data is (zero for fresh fetches).
 	Age time.Duration
+	// FromCache is true when the data was served from the local cache
+	// without contacting the network.
+	FromCache bool
 }
 
 type cacheMeta struct {
@@ -75,7 +78,7 @@ func (c *Client) metaPath() string  { return filepath.Join(c.CacheDir, "index.me
 func (c *Client) Load(ctx context.Context, refresh bool) (Result, error) {
 	cached, meta, cacheErr := c.readCache()
 	if cacheErr == nil && !refresh && c.Now().Sub(meta.FetchedAt) < TTL {
-		return Result{Apps: cached, Age: c.Now().Sub(meta.FetchedAt)}, nil
+		return Result{Apps: cached, Age: c.Now().Sub(meta.FetchedAt), FromCache: true}, nil
 	}
 
 	etag := ""
@@ -101,23 +104,70 @@ func (c *Client) Load(ctx context.Context, refresh bool) (Result, error) {
 
 	// Last resort: stale cache.
 	if cacheErr == nil {
-		return Result{Apps: cached, Stale: true, Age: c.Now().Sub(meta.FetchedAt)}, nil
+		return Result{Apps: cached, Stale: true, Age: c.Now().Sub(meta.FetchedAt), FromCache: true}, nil
 	}
 	return Result{}, fmt.Errorf("fetching registry index: %w", err)
 }
 
 // Get returns a single app by name, or an error listing that it is unknown.
+// If the app is missing from a cached index, the index is refetched once
+// before giving up so newly added apps are found without waiting for the TTL.
 func (c *Client) Get(ctx context.Context, name string, refresh bool) (Manifest, error) {
 	res, err := c.Load(ctx, refresh)
 	if err != nil {
 		return Manifest{}, err
 	}
-	for _, m := range res.Apps {
-		if m.Name == name {
-			return m, nil
+	if m, ok := findApp(res.Apps, name); ok {
+		return m, nil
+	}
+	if res.FromCache {
+		if res, err = c.Load(ctx, true); err == nil {
+			if m, ok := findApp(res.Apps, name); ok {
+				return m, nil
+			}
 		}
 	}
 	return Manifest{}, fmt.Errorf("app %q not found in the registry", name)
+}
+
+func findApp(apps []Manifest, name string) (Manifest, bool) {
+	for _, m := range apps {
+		if m.Name == name {
+			return m, true
+		}
+	}
+	return Manifest{}, false
+}
+
+// ClearCache deletes the cached index and its metadata, returning the
+// number of bytes removed.
+func (c *Client) ClearCache() (int64, error) {
+	var freed int64
+	for _, p := range []string{c.indexPath(), c.metaPath()} {
+		info, err := os.Stat(p)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return freed, err
+		}
+		if err := os.Remove(p); err != nil {
+			return freed, err
+		}
+		freed += info.Size()
+	}
+	return freed, nil
+}
+
+// CacheSize returns the size in bytes of the cached index and metadata.
+func (c *Client) CacheSize() int64 {
+	var n int64
+	for _, p := range []string{c.indexPath(), c.metaPath()} {
+		if info, err := os.Stat(p); err == nil {
+			n += info.Size()
+		}
+	}
+	return n
 }
 
 // CachedNames returns app names from the local cache only (for shell

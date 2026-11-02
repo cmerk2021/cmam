@@ -28,7 +28,7 @@ make install   # builds and copies cmam to ~/.local/bin
 | `cmam info <app> [--json]` | Details, latest version, install status |
 | `cmam self-update` | Update cmam itself |
 | `cmam doctor` | Health diagnostics with fix hints |
-| `cmam clean [--dry-run]` | Clear the download cache |
+| `cmam clean [--registry] [--dry-run]` | Clear the download and registry caches (`--registry`: registry index only) |
 | `cmam version` | Version, commit, build date |
 | `cmam completion bash\|zsh\|fish` | Shell completions |
 
@@ -53,7 +53,8 @@ cmam install wgo
   [`cmam-registry`](https://github.com/cmerk2021/cmam-registry); the CLI
   fetches the generated `index.json` over raw HTTPS (cached for 1 hour with
   ETag revalidation, stale cache used offline), falling back to the GitHub
-  contents API.
+  contents API. Looking up an app missing from the cached index triggers an
+  automatic refetch, so newly added apps are found immediately.
 - **Releases**: resolved via the `releases/latest` redirect (no API quota),
   falling back to the REST API. Pre-releases and drafts are skipped.
 - **UI**: Bubble Tea step list with spinners and a progress bar on a TTY;
@@ -118,7 +119,8 @@ operations (registry index, latest-tag resolution, downloads) avoid the API
 entirely, so this is rare.
 
 **Stale registry** — cmam shows "using cached registry from Nh ago" when
-offline. Force a refetch with `cmam search --refresh`.
+offline. Force a refetch with `cmam search --refresh`, or clear the cached
+index with `cmam clean --registry`.
 
 **A different `<app>` runs than the one installed** — another binary earlier
 in PATH shadows it; `cmam doctor` detects and names it.
