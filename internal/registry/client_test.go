@@ -218,3 +218,59 @@ func TestGetUnknownApp(t *testing.T) {
 		t.Fatal("expected error for unknown app")
 	}
 }
+
+func TestGetRefetchesOnCacheMiss(t *testing.T) {
+	body := indexJSON
+	hits := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	now := time.Now()
+	c.Now = func() time.Time { return now }
+
+	if _, err := c.Get(context.Background(), "wgo", false); err != nil {
+		t.Fatal(err)
+	}
+	// A new app is published while the cache is still fresh.
+	body = `[{"name":"wgo","description":"Watch files","repo":"cmerk2021/wgo"},{"name":"newapp","description":"New","repo":"cmerk2021/newapp"}]`
+	m, err := c.Get(context.Background(), "newapp", false)
+	if err != nil || m.Name != "newapp" {
+		t.Fatalf("expected refetch to find newapp: %+v, %v", m, err)
+	}
+	if hits != 2 {
+		t.Fatalf("expected 2 requests, got %d", hits)
+	}
+	// Truly unknown apps still error after one refetch.
+	if _, err := c.Get(context.Background(), "nope", false); err == nil {
+		t.Fatal("expected not found error")
+	}
+}
+
+func TestClearCache(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(indexJSON))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	if _, err := c.Load(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	if c.CacheSize() == 0 || len(c.CachedNames()) != 1 {
+		t.Fatal("expected populated cache")
+	}
+	freed, err := c.ClearCache()
+	if err != nil || freed == 0 {
+		t.Fatalf("ClearCache: %d, %v", freed, err)
+	}
+	if c.CacheSize() != 0 || c.CachedNames() != nil {
+		t.Fatal("expected empty cache")
+	}
+	if _, err := c.ClearCache(); err != nil {
+		t.Fatalf("clearing empty cache: %v", err)
+	}
+}
