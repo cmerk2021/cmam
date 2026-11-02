@@ -35,6 +35,12 @@ make install   # builds and copies cmam to ~/.local/bin
 Global flags: `--no-color`, `--verbose`, `--yes`. `install`, `update`, and
 `search` accept `--refresh` to force a registry refetch.
 
+Every command checks for a newer cmam release in the background. If you are
+behind, a one-line warning is printed to stderr telling you to run
+`cmam self-update`. The check never blocks for long (it falls back to the last
+known result), is skipped when stderr is not a terminal, and can be disabled
+with `CMAM_NO_UPDATE_CHECK=1`.
+
 ## How it works
 
 ```
@@ -96,7 +102,7 @@ binary named `<name>` at the archive root.
 | `GITHUB_TOKEN` | Sent on GitHub API calls; raises the rate limit |
 | `NO_COLOR` | Disables colored output (also `--no-color`) |
 | `CMAM_HOME` | Overrides every cmam directory (mainly for tests) |
-| `CMAM_NO_UPDATE_CHECK` | Disables the daily background self-update check |
+| `CMAM_NO_UPDATE_CHECK` | Disables the per-command "cmam is out of date" check |
 
 ## Paths
 
